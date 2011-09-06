@@ -8,9 +8,10 @@ Yuri attempts to conform to the following standards:
     T. Berners-Lee, R. Fielding and L.  Masinter, January 2005.
 """
 
+import binascii
 import re
 
-__all__ = ['parse', 'URI']
+__all__ = ['parse', 'encode', 'decode', 'querylist', 'URI']
 
 # A regular expression that splits a well-formed URI reference into its
 # components (adapted from RFC 3986, Appendix B).
@@ -33,6 +34,13 @@ uri_re = re.compile(r"""^
 # TLD-like characters (e.g. '.com', '.co.uk', '.info').
 domain_re = re.compile(".*?([a-z0-9][a-z0-9\-]{1,63}\.[a-z\.]{2,6})$", re.I)
 
+# Unreserved characters are allowed in a URI but should not be %-encoded.
+# (RFC 3986, Section 2.3)
+unreserved_characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
+                        'abcdefghijklmnopqrstuvwxyz' \
+                        '0123456789' \
+                        '_.-~'
+
 def parse(uri):
     """Parse a URI string into a dictionary of its major components.
 
@@ -50,6 +58,90 @@ def parse(uri):
     if match is not None:
         return match.groupdict()
     return {}
+
+def encode(s, query=False):
+    """Percent-encode a string.
+
+    >>> encode('ab[]cd')
+    'ab%5B%5Dcd'
+
+    The encoding rules default to path encoding (which preserves /'s), but
+    query string encoding can also be requested:
+    >>> encode('/two words')
+    '/two%20words'
+    >>> encode('/two words', query=True)
+    '%2Ftwo+words'
+
+    Unreserved characters are never encoded:
+    >>> encode(unreserved_characters)
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-~'
+    """
+    safe = unreserved_characters
+    safe += ' ' if query else '/'
+    encoded = ''
+    for char in s:
+        ordinal = ord(char)
+        if ordinal < 128 and char in safe:
+            encoded += char
+        else:
+            encoded += '%{:02X}'.format(ordinal)
+    if query:
+        encoded = encoded.replace(' ', '+')
+    return encoded
+
+def decode(s, query=False):
+    """Decode a percent-encoded string.
+
+    >>> decode('abc%20def')
+    'abc def'
+
+    The decoding rules default to path encoding, but query string encoding can
+    also be requested:
+    >>> decode('two%20words')
+    'two words'
+    >>> decode('two+words', query=True)
+    'two words'
+    """
+    # Split the string into chunks at % boundaries.  The first two characters
+    # of each chunk after the first should be hex digits in need of decoding.
+    chunks = s.split('%')
+    decoded = chunks[0]
+    for chunk in chunks[1:]:
+        decoded += binascii.unhexlify(chunk[:2])
+        decoded += chunk[2:]
+    if query:
+        decoded = decoded.replace('+', ' ')
+    return decoded
+
+def querylist(query):
+    """Convert a query string into a list of name-value tuples.
+
+    Name-value pairs can be separated by either ampersands or semicolons:
+    >>> querylist('a=1&b=2;c=3')
+    [('a', '1'), ('b', '2'), ('c', '3')]
+
+    Multiple values can be associated with a single name:
+    >>> querylist('name=value1&name=value2')
+    [('name', 'value1'), ('name', 'value2')]
+
+    Fields without values are ignored:
+    >>> querylist('lonely')
+    []
+
+    Names and values are percent-encoded as necessary:
+    >>> querylist('name=two words')
+    [('name', 'two+words')]
+    """
+    l = []
+    for pair in re.split('[&;]', query):
+        try:
+            name, value = pair.split('=')
+            name = encode(name, query=True)
+            value = encode(value, query=True)
+            l.append((name, value))
+        except ValueError:
+            continue
+    return l
 
 class URI(object):
 
@@ -85,6 +177,8 @@ class URI(object):
         'http://www.example.com:8080'
         >>> str(URI(scheme='http', host='www.example.com', userinfo='jon'))
         'http://jon@www.example.com'
+        >>> str(URI(scheme='http', host='www.example.com', query='a=1'))
+        'http://www.example.com?a=1'
         """
         uri = ''
         if self.scheme:
@@ -100,7 +194,8 @@ class URI(object):
         if self.path:
             uri += self.path
         if self.query:
-            uri += '?' + self.query
+            pairs = ['='.join(pair) for pair in self.query]
+            uri += '?' + '&'.join(pairs)
         if self.fragment:
             uri += '#' + self.fragment
         return uri
@@ -135,6 +230,20 @@ class URI(object):
 
     @property
     def port(self):
+        """Access the URI's port component.
+
+        If not None, the port value must be numeric and fall within the valid
+        port number range (0-65535).
+
+        >>> URI(port=8080).port
+        8080
+        >>> URI(port='8080').port
+        8080
+        >>> URI(port=-100).port
+        Traceback (most recent call last):
+            ...
+        ValueError: -100 is outside the valid port range (0-65535)
+        """
         return self.__dict__.get('port')
 
     @port.setter
@@ -146,6 +255,40 @@ class URI(object):
                 raise ValueError('%d is outside the valid port range '
                                  '(0-65535)' % port)
         self.__dict__['port'] = port
+
+    @property
+    def query(self):
+        """Access the URI's query string component.
+
+        Query strings are always given in their "exploded" form: as a list of
+        name-value tuples.
+
+        >>> uri = URI(query='a=1&b=2')
+        >>> uri.query
+        [('a', '1'), ('b', '2')]
+
+        The query list can be manipulated directly:
+        >>> uri.query.append(('c', '3'))
+        >>> uri.query
+        [('a', '1'), ('b', '2'), ('c', '3')]
+        >>> uri.query.pop()
+        ('c', '3')
+        >>> uri.query
+        [('a', '1'), ('b', '2')]
+        """
+        return self.__dict__.get('query')
+
+    @query.setter
+    def query(self, query):
+        # Convert queries strings to a list of query values.
+        if isinstance(query, basestring):
+            query = querylist(query)
+
+        # At this point, our query must be None or a list.
+        if query is not None and not isinstance(query, list):
+            raise ValueError('value must be a list (got %r)' % type(query))
+
+        self.__dict__['query'] = query
 
 if __name__ == '__main__':
     import doctest
