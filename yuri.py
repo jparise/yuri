@@ -8,6 +8,12 @@ Yuri attempts to conform to the following standards:
     T. Berners-Lee, R. Fielding and L.  Masinter, January 2005.
 """
 
+# TODO:
+# - Anything necessary for IDN support?
+# - Proper Unicode handling (encoding paths)
+# - Consistent encoding rules
+# - Port urlparse, urllib unit test suites
+
 import binascii
 import collections
 import re
