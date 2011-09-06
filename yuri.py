@@ -9,9 +9,12 @@ Yuri attempts to conform to the following standards:
 """
 
 import binascii
+import collections
 import re
 
-__all__ = ['parse', 'encode', 'decode', 'querylist', 'URI']
+from collections import OrderedDict
+
+__all__ = ['parse', 'encode', 'decode', 'QueryDict', 'URI']
 
 # A regular expression that splits a well-formed URI reference into its
 # components (adapted from RFC 3986, Appendix B).
@@ -113,35 +116,146 @@ def decode(s, query=False):
         decoded = decoded.replace('+', ' ')
     return decoded
 
-def querylist(query):
-    """Convert a query string into a list of name-value tuples.
+class QueryDict(OrderedDict):
+    """A QueryDict manages a collection of query fields.
 
-    Name-value pairs can be separated by either ampersands or semicolons:
-    >>> querylist('a=1&b=2;c=3')
-    [('a', '1'), ('b', '2'), ('c', '3')]
+    It is based on an ordered dictionary to provide familiar access patterns.
+    It adds support for multiple values per field, per the URI query string
+    specification.
 
-    Multiple values can be associated with a single name:
-    >>> querylist('name=value1&name=value2')
-    [('name', 'value1'), ('name', 'value2')]
-
-    Fields without values are ignored:
-    >>> querylist('lonely')
-    []
-
-    Names and values are percent-encoded as necessary:
-    >>> querylist('name=two words')
-    [('name', 'two+words')]
+    It always store unencoded strings.  Strings are properly encoded once the
+    QueryDict's URI string representation is request (via the __str__ method).
     """
-    l = []
-    for pair in re.split('[&;]', query):
-        try:
-            name, value = pair.split('=')
+    def __init__(self, query=None):
+        """Initialize a QueryDict.
+
+        If a query string is provided, it will be parsed and used as the basis
+        for the QueryDict's fields.
+
+        Name-value pairs can be separated by either ampersands or semicolons:
+        >>> QueryDict('a=1&b=2;c=3')
+        <QueryDict {'a': '1', 'b': '2', 'c': '3'}>
+
+        Multiple values can be associated with a single name:
+        >>> QueryDict('name=value1&name=value2')
+        <QueryDict {'name': ['value1', 'value2']}>
+
+        Fields without values are ignored:
+        >>> QueryDict('lonely')
+        <QueryDict {}>
+
+        Names and values are percent-encoded as necessary:
+        >>> QueryDict('name=two words')
+        <QueryDict {'name': 'two words'}>
+        """
+        OrderedDict.__init__(self)
+        if query is not None:
+            self.parse(query)
+
+    def __repr__(self):
+        """Return the QueryDict's simplified dictionary representation.
+
+        >>> QueryDict('a=1&b=2&b=3')
+        <QueryDict {'a': '1', 'b': ['2', '3']}>
+        """
+        fields = []
+        for name, values in self.iteritems():
+            if len(values) == 1:
+                values = values[0]
+            fields.append("'%s': %r" % (name, values))
+        return '<QueryDict {%s}>' % ', '.join(fields)
+
+    def __str__(self):
+        """Return the query list's URI query string representation.
+
+        >>> str(QueryDict('a=1&b=2'))
+        'a=1&b=2'
+        """
+        pairs = []
+        for name, values in self.iteritems():
             name = encode(name, query=True)
-            value = encode(value, query=True)
-            l.append((name, value))
-        except ValueError:
-            continue
-    return l
+            for value in values:
+                value = encode(value, query=True)
+                pairs.append('%s=%s' % (name, value))
+        return '&'.join(pairs)
+
+    def __setitem__(self, name, value):
+        """Set a field to one or more values."""
+        # New items are created as lists of values.
+        name = name.lower()
+        if isinstance(value, basestring):
+            OrderedDict.__setitem__(self, name, [value])
+        elif isinstance(value, collections.Iterable):
+            OrderedDict.__setitem__(self, name, list(value))
+        else:
+            raise TypeError('unsupported value type: %r' % type(value))
+
+    def __delitem__(self, name):
+        """Delete a field and all of its values."""
+        name = name.lower()
+        OrderedDict.__delitem__(self, name)
+
+    def get(self, name, default=None):
+        return OrderedDict.get(self, name.lower(), default)
+
+    def update(self, *args, **kwargs):
+        # Make sure we use our custom __setitem__.
+        for k, v in OrderedDict(*args, **kwargs).iteritems():
+            self[k] = v
+
+    def add(self, name, *values):
+        """Add one or more new values to the given field name.
+
+        >>> q = QueryDict(); q
+        <QueryDict {}>
+        >>> q.add('a', '1'); q
+        <QueryDict {'a': '1'}>
+        >>> q.add('b', ['2','3']); q
+        <QueryDict {'a': '1', 'b': ['2', '3']}>
+        """
+        name = name.lower()
+        if name in self:
+            self[name].extend(values)
+        else:
+            self[name] = values
+
+    def remove(self, name, value):
+        """Remove a single value for the given field name.
+
+        Once all of a field's values are removed, the value itself will be
+        removed.
+
+        >>> q = QueryDict('a=1&a=2'); q
+        <QueryDict {'a': ['1', '2']}>
+        >>> q.remove('a', '2'); q
+        <QueryDict {'a': '1'}>
+        >>> q.remove('a', '2')
+        Traceback (most recent call last):
+            ...
+        ValueError: list.remove(x): x not in list
+        >>> q.remove('a', '1'); q
+        <QueryDict {}>
+        >>> q.remove('a', '1')
+        Traceback (most recent call last):
+            ...
+        KeyError: 'a'
+        """
+        name = name.lower()
+        values = self[name]
+        values.remove(value)
+        if not values:
+            del self[name]
+
+    def parse(self, query):
+        """Parse the given query string and add its fields."""
+        for pair in re.split('[&;]', query):
+            try:
+                name, value = pair.split('=')
+            except ValueError:
+                continue
+            name = decode(name, query=True)
+            value = decode(value, query=True)
+            self.add(name, value)
 
 class URI(object):
 
@@ -152,7 +266,7 @@ class URI(object):
         self.host = host
         self.port = port
         self.path = path
-        self.query = query
+        self.query = QueryDict(query)
         self.fragment = fragment
 
     @classmethod
@@ -160,11 +274,16 @@ class URI(object):
         """Construct a URI object by parsing the given URI string.
 
         >>> URI.parse('http://www.example.com:8080/path')
-        <URI scheme=http, userinfo=None, host=www.example.com,
-         port=8080, path=/path, query=None, fragment=None>
+        <URI scheme='http', userinfo=None, host='www.example.com',
+         port=8080, path='/path', query=<QueryDict {}>, fragment=None>
         """
         components = parse(uri)
         return cls(**components)
+
+    def __repr__(self):
+        return '<URI scheme=%(scheme)r, userinfo=%(userinfo)r, ' \
+               'host=%(host)r, port=%(port)r, path=%(path)r, ' \
+               'query=%(query)r, fragment=%(fragment)r>' % self.__dict__
 
     def __str__(self):
         """Return this object's corresponding URI reference string.
@@ -194,16 +313,10 @@ class URI(object):
         if self.path:
             uri += self.path
         if self.query:
-            pairs = ['='.join(pair) for pair in self.query]
-            uri += '?' + '&'.join(pairs)
+            uri += '?' + str(self.query)
         if self.fragment:
             uri += '#' + self.fragment
         return uri
-
-    def __repr__(self):
-        return '<URI scheme=%(scheme)s, userinfo=%(userinfo)s, ' \
-               'host=%(host)s, port=%(port)s, path=%(path)s, ' \
-               'query=%(query)s, fragment=%(fragment)s>' % self.__dict__
 
     @property
     def domain(self):
@@ -255,40 +368,6 @@ class URI(object):
                 raise ValueError('%d is outside the valid port range '
                                  '(0-65535)' % port)
         self.__dict__['port'] = port
-
-    @property
-    def query(self):
-        """Access the URI's query string component.
-
-        Query strings are always given in their "exploded" form: as a list of
-        name-value tuples.
-
-        >>> uri = URI(query='a=1&b=2')
-        >>> uri.query
-        [('a', '1'), ('b', '2')]
-
-        The query list can be manipulated directly:
-        >>> uri.query.append(('c', '3'))
-        >>> uri.query
-        [('a', '1'), ('b', '2'), ('c', '3')]
-        >>> uri.query.pop()
-        ('c', '3')
-        >>> uri.query
-        [('a', '1'), ('b', '2')]
-        """
-        return self.__dict__.get('query')
-
-    @query.setter
-    def query(self, query):
-        # Convert queries strings to a list of query values.
-        if isinstance(query, basestring):
-            query = querylist(query)
-
-        # At this point, our query must be None or a list.
-        if query is not None and not isinstance(query, list):
-            raise ValueError('value must be a list (got %r)' % type(query))
-
-        self.__dict__['query'] = query
 
 if __name__ == '__main__':
     import doctest
