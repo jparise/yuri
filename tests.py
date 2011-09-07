@@ -100,6 +100,26 @@ class DecodingTests(unittest.TestCase):
         r = yuri.decode(u'br%C3%BCckner_sapporo_20050930.doc')
         self.assertEqual(r, u'br\xc3\xbcckner_sapporo_20050930.doc')
 
+class QueryDictTests(unittest.TestCase):
+
+    def test_parsing(self):
+        tests = [
+            ('',            {}),
+            ('&',           {}),
+            ('&&',          {}),
+            ('=',           {'': ''}),
+            ('=a',          {'': 'a'}),
+            ('a',           {'a': ''}),
+            ('a=',          {'a': ''}),
+            ('&a=b',        {'a': 'b'}),
+            ('a=a+b&b=b+c', {'a': 'a b', 'b': 'b c'}),
+            ('a=1&a=2',     {'a': ['1', '2']}),
+        ]
+
+        for given, expected in tests:
+            d = yuri.QueryDict(given)
+            self.assertEqual(repr(d), repr(expected))
+
 def load_tests(loader, tests, ignore):
     optionflags = doctest.NORMALIZE_WHITESPACE
     tests.addTests(doctest.DocTestSuite(yuri, optionflags=optionflags))
