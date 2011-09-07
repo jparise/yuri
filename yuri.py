@@ -133,6 +133,9 @@ def decode(s, query=False):
             decoded += chunk[2:]
         except TypeError:
             decoded += '%' + chunk
+        except UnicodeDecodeError:
+            decoded += unichr(int(chunk[:2], 16))
+            decoded += chunk[2:]
     return decoded
 
 class QueryDict(OrderedDict):
