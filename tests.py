@@ -1,4 +1,5 @@
 import binascii
+import doctest
 import unittest
 import yuri
 
@@ -98,6 +99,11 @@ class DecodingTests(unittest.TestCase):
     def test_unicode(self):
         r = yuri.decode(u'br%C3%BCckner_sapporo_20050930.doc')
         self.assertEqual(r, u'br\xc3\xbcckner_sapporo_20050930.doc')
+
+def load_tests(loader, tests, ignore):
+    optionflags = doctest.NORMALIZE_WHITESPACE
+    tests.addTests(doctest.DocTestSuite(yuri, optionflags=optionflags))
+    return tests
 
 if __name__ == '__main__':
     unittest.main()
