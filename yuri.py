@@ -164,9 +164,9 @@ class QueryDict(OrderedDict):
         >>> QueryDict('name=value1&name=value2')
         {'name': ['value1', 'value2']}
 
-        Fields without values are ignored:
+        Fields without values are supported:
         >>> QueryDict('lonely')
-        {}
+        {'lonely': ''}
 
         Names and values are percent-encoded as necessary:
         >>> QueryDict('name=two words')
@@ -276,7 +276,11 @@ class QueryDict(OrderedDict):
             try:
                 name, value = pair.split('=')
             except ValueError:
-                continue
+                # Skip completely empty items.
+                if not pair:
+                    continue
+                # Allow names without values.
+                name, value = pair, ''
             name = decode(name, query=True)
             value = decode(value, query=True)
             self.add(name, value)
