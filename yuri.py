@@ -18,7 +18,14 @@ import binascii
 import collections
 import re
 
-from collections import OrderedDict
+# We prefer to use OrderedDict, but if it's not available (< Python 2.7), we
+# fall back to the normal dict implementation.  In the latter case, some of
+# our doctests may fail due to non-determistic key ordering.  That can be
+# addressed later if it becomes an actual problem in practice.
+try:
+    from collections import OrderedDict
+except ImportError:
+    OrderedDict = dict
 
 __all__ = ['parse', 'encode', 'decode', 'QueryDict', 'URI']
 
