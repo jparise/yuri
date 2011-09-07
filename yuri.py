@@ -158,19 +158,19 @@ class QueryDict(OrderedDict):
 
         Name-value pairs can be separated by either ampersands or semicolons:
         >>> QueryDict('a=1&b=2;c=3')
-        <QueryDict {'a': '1', 'b': '2', 'c': '3'}>
+        {'a': '1', 'b': '2', 'c': '3'}
 
         Multiple values can be associated with a single name:
         >>> QueryDict('name=value1&name=value2')
-        <QueryDict {'name': ['value1', 'value2']}>
+        {'name': ['value1', 'value2']}
 
         Fields without values are ignored:
         >>> QueryDict('lonely')
-        <QueryDict {}>
+        {}
 
         Names and values are percent-encoded as necessary:
         >>> QueryDict('name=two words')
-        <QueryDict {'name': 'two words'}>
+        {'name': 'two words'}
         """
         OrderedDict.__init__(self)
         if query is not None:
@@ -180,14 +180,14 @@ class QueryDict(OrderedDict):
         """Return the QueryDict's simplified dictionary representation.
 
         >>> QueryDict('a=1&b=2&b=3')
-        <QueryDict {'a': '1', 'b': ['2', '3']}>
+        {'a': '1', 'b': ['2', '3']}
         """
         fields = []
         for name, values in self.iteritems():
             if len(values) == 1:
                 values = values[0]
             fields.append("'%s': %r" % (name, values))
-        return '<QueryDict {%s}>' % ', '.join(fields)
+        return '{%s}' % ', '.join(fields)
 
     def __str__(self):
         """Return the query list's URI query string representation.
@@ -231,11 +231,11 @@ class QueryDict(OrderedDict):
         """Add one or more new values to the given field name.
 
         >>> q = QueryDict(); q
-        <QueryDict {}>
+        {}
         >>> q.add('a', '1'); q
-        <QueryDict {'a': '1'}>
+        {'a': '1'}
         >>> q.add('b', ['2','3']); q
-        <QueryDict {'a': '1', 'b': ['2', '3']}>
+        {'a': '1', 'b': ['2', '3']}
         """
         name = name.lower()
         if name in self:
@@ -250,15 +250,15 @@ class QueryDict(OrderedDict):
         removed.
 
         >>> q = QueryDict('a=1&a=2'); q
-        <QueryDict {'a': ['1', '2']}>
+        {'a': ['1', '2']}
         >>> q.remove('a', '2'); q
-        <QueryDict {'a': '1'}>
+        {'a': '1'}
         >>> q.remove('a', '2')
         Traceback (most recent call last):
             ...
         ValueError: list.remove(x): x not in list
         >>> q.remove('a', '1'); q
-        <QueryDict {}>
+        {}
         >>> q.remove('a', '1')
         Traceback (most recent call last):
             ...
@@ -299,7 +299,7 @@ class URI(object):
 
         >>> URI.parse('http://www.example.com:8080/path')
         <URI scheme='http', userinfo=None, host='www.example.com',
-         port=8080, path='/path', query=<QueryDict {}>, fragment=None>
+         port=8080, path='/path', query={}, fragment=None>
         """
         components = parse(uri)
         return cls(**components)
