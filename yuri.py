@@ -14,6 +14,8 @@ Yuri attempts to conform to the following standards:
 # - Consistent encoding rules
 # - Port urlparse, urllib unit test suites
 
+__version__ = '0.1.0'
+
 import binascii
 import collections
 import re
