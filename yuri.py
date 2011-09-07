@@ -118,6 +118,8 @@ def decode(s, query=False):
     >>> decode('two+words', query=True)
     'two words'
     """
+    if query:
+        s = s.replace('+', ' ')
     # Split the string into chunks at % boundaries.  The first two characters
     # of each chunk after the first should be hex digits in need of decoding.
     chunks = s.split('%')
@@ -125,8 +127,6 @@ def decode(s, query=False):
     for chunk in chunks[1:]:
         decoded += binascii.unhexlify(chunk[:2])
         decoded += chunk[2:]
-    if query:
-        decoded = decoded.replace('+', ' ')
     return decoded
 
 class QueryDict(OrderedDict):
