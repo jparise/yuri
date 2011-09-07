@@ -125,8 +125,14 @@ def decode(s, query=False):
     chunks = s.split('%')
     decoded = chunks[0]
     for chunk in chunks[1:]:
-        decoded += binascii.unhexlify(chunk[:2])
-        decoded += chunk[2:]
+        if len(chunk) < 2:
+            decoded += '%' + chunk
+            continue
+        try:
+            decoded += binascii.unhexlify(chunk[:2])
+            decoded += chunk[2:]
+        except TypeError:
+            decoded += '%' + chunk
     return decoded
 
 class QueryDict(OrderedDict):
