@@ -293,6 +293,7 @@ class QueryDict(OrderedDict):
             self.add(name, value)
 
 class URI(object):
+    """The URI class represents a Uniform Resource Identifier."""
 
     def __init__(self, scheme=None, userinfo=None, host=None, port=None,
             path=None, query=None, fragment=None):
@@ -301,7 +302,7 @@ class URI(object):
         self.host = host
         self.port = port
         self.path = path
-        self.query = QueryDict(query)
+        self.query = query if type(query) is QueryDict else QueryDict(query)
         self.fragment = fragment
 
     @classmethod
