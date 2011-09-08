@@ -176,7 +176,38 @@ class QueryDictTests(unittest.TestCase):
 
         for given, expected in tests:
             d = yuri.QueryDict(given)
-            self.assertEqual(repr(d), repr(expected))
+            self.assertEqual(d, expected)
+
+    def test_dict(self):
+        d = yuri.QueryDict('a=1')
+        self.assertIn('a', d)
+        self.assertEqual(d['a'], '1')
+        del d['a']
+        self.assertNotIn('a', d)
+
+        d['b'] = 2
+        self.assertIn('b', d)
+        d.clear()
+        self.assertFalse(d)
+
+    def test_get(self):
+        d = yuri.QueryDict('a=1')
+        self.assertEqual(d.get('a'), '1')
+        self.assertEqual(d.get('b', '2'), '2')
+
+    def test_mixedcase(self):
+        d = yuri.QueryDict('a=1')
+        self.assertIn('A', d)
+
+    def test_add(self):
+        d = yuri.QueryDict('a=1')
+        d.add('a', '2')
+        self.assertListEqual(d['a'], ['1', '2'])
+
+    def test_remove(self):
+        d = yuri.QueryDict('a=1&a=2')
+        d.remove('a', '1')
+        self.assertEqual(d['a'], '2')
 
 def load_tests(loader, tests, ignore):
     optionflags = doctest.NORMALIZE_WHITESPACE

@@ -188,8 +188,6 @@ class QueryDict(OrderedDict):
         """
         fields = []
         for name, values in self.iteritems():
-            if len(values) == 1:
-                values = values[0]
             fields.append("'%s': %r" % (name, values))
         return '{%s}' % ', '.join(fields)
 
@@ -207,16 +205,14 @@ class QueryDict(OrderedDict):
                 pairs.append('%s=%s' % (name, value))
         return '&'.join(pairs)
 
+    def __contains__(self, name):
+        name = name.lower()
+        return OrderedDict.__contains__(self, name)
+
     def __setitem__(self, name, value):
         """Set a field to one or more values."""
-        # New items are created as lists of values.
         name = name.lower()
-        if isinstance(value, basestring):
-            OrderedDict.__setitem__(self, name, [value])
-        elif isinstance(value, collections.Iterable):
-            OrderedDict.__setitem__(self, name, list(value))
-        else:
-            raise TypeError('unsupported value type: %r' % type(value))
+        OrderedDict.__setitem__(self, name, str(value))
 
     def __delitem__(self, name):
         """Delete a field and all of its values."""
@@ -231,21 +227,25 @@ class QueryDict(OrderedDict):
         for k, v in OrderedDict(*args, **kwargs).iteritems():
             self[k] = v
 
-    def add(self, name, *values):
-        """Add one or more new values to the given field name.
+    def add(self, name, value):
+        """Add a new value to the given field name.
 
         >>> q = QueryDict(); q
         {}
         >>> q.add('a', '1'); q
         {'a': '1'}
-        >>> q.add('b', ['2','3']); q
-        {'a': '1', 'b': ['2', '3']}
+        >>> q.add('a', '2'); q
+        {'a': ['1', '2']}
         """
         name = name.lower()
         if name in self:
-            self[name].extend(values)
+            values = self[name]
+            if type(values) is not list:
+                values = [values]
+            values.append(str(value))
+            OrderedDict.__setitem__(self, name, values)
         else:
-            self[name] = values
+            OrderedDict.__setitem__(self, name, str(value))
 
     def remove(self, name, value):
         """Remove a single value for the given field name.
@@ -257,10 +257,8 @@ class QueryDict(OrderedDict):
         {'a': ['1', '2']}
         >>> q.remove('a', '2'); q
         {'a': '1'}
-        >>> q.remove('a', '2')
-        Traceback (most recent call last):
-            ...
-        ValueError: list.remove(x): x not in list
+        >>> q.remove('a', '2'); q
+        {'a': '1'}
         >>> q.remove('a', '1'); q
         {}
         >>> q.remove('a', '1')
@@ -270,8 +268,13 @@ class QueryDict(OrderedDict):
         """
         name = name.lower()
         values = self[name]
-        values.remove(value)
-        if not values:
+        if type(values) is list:
+            values.remove(value)
+            if len(values) == 1:
+                self[name] = values[0]
+            elif not values:
+                del self[name]
+        elif value == values:
             del self[name]
 
     def parse(self, query):
