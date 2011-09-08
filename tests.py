@@ -100,6 +100,64 @@ class DecodingTests(unittest.TestCase):
         r = yuri.decode(u'br%C3%BCckner_sapporo_20050930.doc')
         self.assertEqual(r, u'br\xc3\xbcckner_sapporo_20050930.doc')
 
+class ParsingTests(unittest.TestCase):
+
+    def test_parsing(self):
+        tests = [
+            ('file:///tmp/junk.txt',
+                {'fragment': None,
+                 'host': None,
+                 'path': '/tmp/junk.txt',
+                 'port': None,
+                 'query': None,
+                 'scheme': 'file',
+                 'userinfo': None}),
+            ('git+ssh://git@github.com/user/project.git',
+                {'fragment': None,
+                 'host': 'github.com',
+                 'path': '/user/project.git',
+                 'port': None,
+                 'query': None,
+                 'scheme': 'git+ssh',
+                 'userinfo': 'git'}),
+            ('http://www.python.org#abc',
+                {'fragment': 'abc',
+                 'host': 'www.python.org',
+                 'path': '',
+                 'port': None,
+                 'query': None,
+                 'scheme': 'http',
+                 'userinfo': None}),
+            ('http://www.python.org?q=abc',
+                {'fragment': None,
+                 'host': 'www.python.org',
+                 'path': '',
+                 'port': None,
+                 'query': 'q=abc',
+                 'scheme': 'http',
+                 'userinfo': None}),
+            ('http://www.python.org/#abc',
+                {'fragment': 'abc',
+                 'host': 'www.python.org',
+                 'path': '/',
+                 'port': None,
+                 'query': None,
+                 'scheme': 'http',
+                 'userinfo': None}),
+            ('http://a/b/c/d;p?q#f',
+                {'fragment': 'f',
+                 'host': 'a',
+                 'path': '/b/c/d;p',
+                 'port': None,
+                 'query': 'q',
+                 'scheme': 'http',
+                 'userinfo': None}),
+        ]
+
+        for uri, expected in tests:
+            result = yuri.parse(uri)
+            self.assertEqual(result, expected)
+
 class QueryDictTests(unittest.TestCase):
 
     def test_parsing(self):
