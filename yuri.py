@@ -10,11 +10,8 @@ Yuri attempts to conform to the following standards:
 
 # TODO:
 # - Anything necessary for IDN support?
-# - Proper Unicode handling (encoding paths)
-# - Consistent encoding rules
-# - Port urlparse, urllib unit test suites
 
-__version__ = '0.1.0'
+__version__ = '0.9.0'
 
 import binascii
 import collections
