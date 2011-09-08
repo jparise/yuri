@@ -62,11 +62,15 @@ unreserved_characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' \
 def parse(uri):
     """Parse a URI string into a dictionary of its major components.
 
-    >>> d = parse('http://jon@www.example.com:1000/path?query#fragment')
+    This implementation follows the rules established by RFC 2396.
+    Specifically, that means that parameters (marked by a semicolon) are
+    allowed in the path portion of the URI.
+
+    >>> d = parse('http://jon@www.example.com:1000/path;p?query#fragment')
     >>> for k in sorted(d.keys()): print "%s: %s" % (k, d[k])
     fragment:   fragment
     host:       www.example.com
-    path:       /path
+    path:       /path;p
     port:       1000
     query:      query
     scheme:     http
